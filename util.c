@@ -1,13 +1,12 @@
-//
-// Created by Claudio Alvarez Gomez on 8/16/18.
-//
-#include "util.h"
 #include <math.h>
+#include "util.h"
+
 
 /* mean
  * vec: pointer to an array containing double values
  * size: number of values (array size)
  */
+
 double mean(double* vec, size_t size) {
     double sum = 0.0;
     for (double* pv = vec; pv < vec + size; pv++) {

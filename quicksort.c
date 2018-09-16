@@ -1,12 +1,16 @@
 #include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
-#include <math.h>
 #include <unistd.h>
+#include <limits.h>
+#include <math.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <sys/un.h>
 #include <stdbool.h>
 #include <string.h>
-#include <time.h>
+#include <getopt.h>
+#include <pthread.h>
 #include "types.h"
 #include "const.h"
 #include "util.h"
@@ -27,12 +31,48 @@ int main(int argc, char** argv) {
     /* Get the number of CPU cores available */
     printf("[quicksort] Number of cores available: '%ld'\n",
            sysconf(_SC_NPROCESSORS_ONLN));
-
+    int size;
+    char experiments[2] = "";
     /* TODO: parse arguments with getopt */
+    int option = 0;
+    while ((option = getopt(argc, argv, "T:E:")) != -1)
+    {
+        switch (option)
+        {
+        case 'T':
 
+            strcpy(experiments, optarg);
+            continue;
+        case 'E':
+            size = atoi(optarg);
+            continue;
+        default:
+            printf("Parameters wrong");
+            exit(1);
+        }
+    }
     /* TODO: start datagen here as a child process. */
+    pid_t i = fork();
+    if (i == 0)
+    {
+        if (execv("./datagen", argv) < 0)
+        {
+            printf("Doesnt works");
+            exit(1);
+        }
+    }
+    else if (i > 0)
+    {
+    }
+    else
+    {
+        perror("fork failed");
+        exit(3);
+    }
 
     /* Create the domain socket to talk to datagen. */
+
+
     struct sockaddr_un addr;
     int fd;
 
@@ -45,7 +85,7 @@ int main(int argc, char** argv) {
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, DSOCKET_PATH, sizeof(addr.sun_path) - 1);
 
-    if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
+    while (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
         perror("[quicksort] connect error.\n");
         close(fd);
         exit(-1);
@@ -54,7 +94,8 @@ int main(int argc, char** argv) {
     /* DEMO: request two sets of unsorted random numbers to datagen */
     for (int i = 0; i < 2; i++) {
         /* T value 3 hardcoded just for testing. */
-        char *begin = "BEGIN U 3";
+        char begin[20] = "BEGIN S ";
+        strcat(begin, experiments);
         int rc = strlen(begin);
 
         /* Request the random number stream to datagen */
@@ -106,6 +147,10 @@ int main(int argc, char** argv) {
             close(fd);
             exit(-1);
         }
+    }
+    for (int i = 0; i < size; ++i)
+    {
+        /* code */
     }
 
     close(fd);

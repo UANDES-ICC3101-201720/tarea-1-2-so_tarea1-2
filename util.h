@@ -5,6 +5,8 @@
 #ifndef T1_1_UTIL_H
 #define T1_1_UTIL_H
 #include <unistd.h>
+#include <stdio.h>
+#include <math.h>
 
 /* mean
  * vec: pointer to an array containing double values
