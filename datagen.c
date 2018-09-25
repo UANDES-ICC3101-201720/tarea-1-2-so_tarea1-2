@@ -105,7 +105,7 @@ int main(int argc, char **argv)
             {
                 bool sorted = sflag == 'U';
 
-                if (tvalue < 1 || tvalue > 8)
+                if (tvalue < 1 || tvalue > 4)
                 {
                     perror("[datagen] Invalid T value! Aborting.\n");
                     continue;
