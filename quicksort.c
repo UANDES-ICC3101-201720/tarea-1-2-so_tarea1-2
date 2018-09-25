@@ -15,9 +15,27 @@
 #include "const.h"
 #include "util.h"
 
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+typedef struct list
+{
+    UINT num;
+    struct list *next;
+} list;
+typedef struct list_container
+{
+    list *less;
+    list *bigger;
+    list *next;
+} list_container;
+
 typedef struct data
 {
     UINT *arr;
+    int low;
+    int high;
+    UINT pivot;
+    list_container *lists;
 } data;
 
 void swap(UINT *a, UINT *b)
@@ -27,11 +45,33 @@ void swap(UINT *a, UINT *b)
     *b = t;
 }
 
+int append(UINT value, list *initial, list *next)
+{
+    next = initial;
+
+    if (next->num == -1)
+    {
+        next->num = value;
+        return 0;
+    }
+    if (next != NULL)
+    {
+        while (next->next != NULL)
+        {
+            next = next->next;
+        }
+    }
+
+    next->next = malloc(sizeof(list));
+    next = next->next;
+    next->num = value;
+    return 0;
+}
+
 int partition(UINT *arr, int low, int high)
 {
-    int pivot = arr[high];
+    UINT pivot = arr[high];
     int i = (low - 1);
-
     for (int j = low; j <= high - 1; j++)
     {
         if (arr[j] <= pivot)
@@ -54,17 +94,135 @@ void quicksort(UINT *arr, int low, int high)
         quicksort(arr, pi + 1, high);
     }
 }
-// TODO: implement
-int parallel_quicksort(UINT *A, int low, int high)
+
+int Partition(UINT *arr, int low, int high, UINT pivot, list *less, list *bigger, list *next)
 {
-    return 0;
+    int i = (low - 1);
+    for (int j = low; j <= high - 1; j++)
+    {
+        if (arr[j] <= pivot)
+        {
+            i++;
+            append(arr[j], less, next);
+        }
+        else
+        {
+            append(arr[j], bigger, next);
+        }
+    }
+    return (i + 1);
+}
+void quickSort(void *d)
+{
+    data *info = d;
+    if (info->low < info->high)
+    {
+        pthread_mutex_lock(&lock);
+        Partition(info->arr, info->low, info->high, info->pivot, info->lists->less, info->lists->bigger, info->lists->next);
+        pthread_mutex_unlock(&lock);
+        pthread_cond_broadcast(&cond);
+    }
+}
+// TODO: implement
+void parallel_quicksort(UINT *arr, long int size, int low, int high, int con)
+{
+    int max_threads = sysconf(_SC_NPROCESSORS_ONLN);
+    pthread_t m_tid[max_threads];
+    int parts = high / max_threads;
+    int counter = low;
+    int piv = rand() % size;
+    list_container *l_c = malloc(sizeof(list_container));
+    list *less = malloc(sizeof(list));
+    less->num = -1;
+    list *bigger = malloc(sizeof(list));
+    bigger->num = -1;
+    l_c->bigger = bigger;
+    l_c->less = less;
+    l_c->next = NULL;
+    for (int i = 0; i < max_threads; i++)
+    {
+        data *info = malloc(sizeof(data));
+        info->low = counter;
+        info->high = size * (i + 1) / max_threads;
+        info->arr = arr;
+        info->pivot = arr[piv];
+        info->lists = l_c;
+        if (counter > size * (i + 1) / max_threads)
+        {
+            free(info);
+            continue;
+        }
+        if (pthread_create(&m_tid[i], NULL, (void *)quickSort, info))
+        {
+            free(info);
+        }
+        counter += parts;
+    }
+    for (int i = 0; i < max_threads; i++)
+    {
+        pthread_join(m_tid[i], NULL);
+    }
+    short int help = 0;
+    int biggy_start = 0;
+    /*list *next = less;
+    while (next != NULL)
+    {
+        fprintf(stderr, "[l]%u\n", next->num);
+        next = next->next;
+    }
+    next = bigger;
+    while (next != NULL)
+    {
+        fprintf(stderr, "[b]%u\n", next->num);
+        next = next->next;
+    }
+    */
+    for (UINT *pv = arr; pv < arr + size; pv++)
+    {
+        if (help == 0)
+        {
+            *pv = less->num;
+
+            if (less->next == NULL)
+            {
+                help = 1;
+            }
+            else
+            {
+                less = less->next;
+            }
+            biggy_start++;
+        }
+        else
+        {
+
+            *pv = bigger->num;
+            if (bigger->next == NULL)
+            {
+                break;
+            }
+            else
+            {
+                bigger = bigger->next;
+            }
+        }
+    }
+
+    free(less);
+    free(bigger);
+    if (biggy_start < high && biggy_start > low)
+    {
+        fprintf(stderr, "%i , %i, %li\n", low, biggy_start, size);
+        parallel_quicksort(arr, size, low, biggy_start - 1, con);
+        parallel_quicksort(arr, size, biggy_start + 1, high, con);
+    }
 }
 
 int main(int argc, char **argv)
 {
     printf("[quicksort] Starting up...\n");
 
-    /* Get the number of CPU cores available */
+    /* Get the number of4 CPU cores available */
     printf("[quicksort] Number of cores available: '%ld'\n",
            sysconf(_SC_NPROCESSORS_ONLN));
     int size;
@@ -177,13 +335,13 @@ int main(int argc, char **argv)
     {
         printf("%u ", *pv);
     }
-    quicksort(readbuf, 0, numvalues);
+    //quicksort(readbuf, 0, numvalues);
+    parallel_quicksort(readbuf, numvalues, 0, numvalues, 0);
     printf("\n\nS: ");
     for (UINT *pv = readbuf; pv < readbuf + numvalues; pv++)
     {
         printf("%u ", *pv);
     }
-    free(readbuf);
     /* Issue the END command to datagen */
     int rc = strlen(DATAGEN_END_CMD);
     if (write(fd, DATAGEN_END_CMD, strlen(DATAGEN_END_CMD)) != rc)
