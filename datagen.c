@@ -103,7 +103,7 @@ int main(int argc, char **argv)
             int toks = sscanf(buf, DATAGEN_BEGIN_CMD_FMT, cmd, &sflag, &tvalue);
             if (toks == 3 && strstr(cmd, "BEGIN") != NULL)
             {
-                bool sorted = sflag == 'S';
+                bool sorted = sflag == 'U';
 
                 if (tvalue < 1 || tvalue > 8)
                 {

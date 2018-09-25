@@ -96,14 +96,8 @@ void parallel_quicksort(UINT *array, int left, int right)
 
 int main(int argc, char **argv)
 {
-    printf("[quicksort] Starting up...\n");
-
-    /* Get the number of4 CPU cores available */
-    printf("[quicksort] Number of cores available: '%ld'\n",
-           sysconf(_SC_NPROCESSORS_ONLN));
     int size;
     char experiments[2] = "";
-    /* TODO: parse arguments with getopt */
     int option = 0;
     while ((option = getopt(argc, argv, "T:E:")) != -1)
     {
@@ -122,56 +116,58 @@ int main(int argc, char **argv)
         }
     }
     /* TODO: start datagen here as a child process. */
-    pid_t i = fork();
-    if (i == 0)
-    {
-        if (execv("./datagen", argv) < 0)
-        {
-            printf("Doesnt works");
-            exit(1);
-        }
-    }
-    else if (i > 0)
-    {
-    }
-    else
-    {
-        perror("fork failed");
-        exit(3);
-    }
-
-    /* Create the domain socket to talk to datagen. */
-
-    struct sockaddr_un addr;
-    int fd;
-
-    if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
-    {
-        perror("[quicksort] Socket error.\n");
-        exit(-1);
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, DSOCKET_PATH, sizeof(addr.sun_path) - 1);
-
-    while (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
-    {
-        perror("[quicksort] connect error.\n");
-        close(fd);
-        exit(-1);
-    }
 
     /* DEMO: request two sets of unsorted random numbers to datagen */
-    UINT readvalues = 0;
-    size_t numvalues = pow(10, atoi(experiments));
-    size_t readbytes = 0;
 
-    UINT *readbuf = malloc(sizeof(UINT) * numvalues);
-    for (int i = 0; i < 2; i++)
+    /* Issue the END command to datagen */
+    for (int l = 0; l < size; ++l)
     {
+        pid_t i = fork();
+        if (i == 0)
+        {
+            if (execv("./datagen", argv) < 0)
+            {
+                printf("Doesnt works");
+                exit(1);
+            }
+        }
+        else if (i > 0)
+        {
+        }
+        else
+        {
+            perror("fork failed");
+            exit(3);
+        }
+
+        /* Create the domain socket to talk to datagen. */
+
+        struct sockaddr_un addr;
+        int fd;
+
+        if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+        {
+            perror("[quicksort] Socket error.\n");
+            exit(-1);
+        }
+
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, DSOCKET_PATH, sizeof(addr.sun_path) - 1);
+
+        while (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+        {
+            perror("[quicksort] connect error.\n");
+            close(fd);
+            exit(-1);
+        }
+
+        UINT readvalues = 0;
+        size_t numvalues = pow(10, atoi(experiments));
+        size_t readbytes = 0;
+        UINT *readbuf = malloc(sizeof(UINT) * numvalues);
         /* T value 3 hardcoded just for testing. */
-        char begin[20] = "BEGIN S ";
+        char begin[20] = "BEGIN U ";
         strcat(begin, experiments);
         int rc = strlen(begin);
 
@@ -205,38 +201,37 @@ int main(int argc, char **argv)
             readbytes = read(fd, readbuf + readvalues, sizeof(UINT) * 1000);
             readvalues += readbytes / 4;
         }
-    }
-    printf("E: ");
-    for (UINT *pv = readbuf; pv < readbuf + numvalues; pv++)
-    {
-        printf("%u ", *pv);
-    }
-    //quicksort(readbuf, 0, numvalues);
-    parallel_quicksort(readbuf, 0, numvalues - 1);
 
-    printf("\n\nS: ");
-    for (UINT *pv = readbuf; pv < readbuf + numvalues; pv++)
-    {
-        printf("%u ", *pv);
-    }
-    /* Issue the END command to datagen */
-    int rc = strlen(DATAGEN_END_CMD);
-    if (write(fd, DATAGEN_END_CMD, strlen(DATAGEN_END_CMD)) != rc)
-    {
-        if (rc > 0)
-            fprintf(stderr, "[quicksort] partial write.\n");
-        else
-        {
-            perror("[quicksort] write error.\n");
-            close(fd);
-            exit(-1);
-        }
-    }
-    for (int i = 0; i < size; ++i)
-    {
         /* code */
+        printf("E%i: ", l + 1);
+        for (UINT *pv = readbuf; pv < readbuf + numvalues; pv++)
+        {
+            printf("%u ", *pv);
+        }
+        //quicksort(readbuf, 0, numvalues);
+        parallel_quicksort(readbuf, 0, numvalues - 1);
+
+        printf("\n\nS%i: ", l + 1);
+        for (UINT *pv = readbuf; pv < readbuf + numvalues; pv++)
+        {
+            printf("%u ", *pv);
+        }
+        printf("\n\n");
+        free(readbuf);
+        rc = strlen(DATAGEN_END_CMD);
+        if (write(fd, DATAGEN_END_CMD, strlen(DATAGEN_END_CMD)) != rc)
+        {
+            if (rc > 0)
+                fprintf(stderr, "[quicksort] partial write.\n");
+            else
+            {
+                perror("[quicksort] write error.\n");
+                close(fd);
+                exit(-1);
+            }
+        }
+        close(fd);
     }
 
-    close(fd);
     exit(0);
 }
