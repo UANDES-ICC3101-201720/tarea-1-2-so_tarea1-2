@@ -81,17 +81,18 @@ void parallel_quicksort(UINT *array, int left, int right)
 {
     if (right > left)
     {
+
         int pivotIndex = left + (right - left) / 2;
-        pthread_mutex_lock(&lock);
         pivotIndex = Partition(array, left, right, pivotIndex);
-        pthread_mutex_unlock(&lock);
-        pthread_cond_broadcast(&cond);
-        fprintf(stderr, "%i %i\n", right, left);
-        quickData arg = {array, left, pivotIndex - 1};
+        quickData *arg = malloc(sizeof(quickData));
+        arg->arr = array;
+        arg->left = left;
+        arg->right = pivotIndex - 1;
         pthread_t thread;
-        pthread_create(&thread, NULL, quicksort_thread, &arg);
+        pthread_create(&thread, NULL, quicksort_thread, arg);
         parallel_quicksort(array, pivotIndex + 1, right);
         pthread_join(thread, NULL);
+        free(arg);
     }
 }
 void *quicksort_thread(void *init)
