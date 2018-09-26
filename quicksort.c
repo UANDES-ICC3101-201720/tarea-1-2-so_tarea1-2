@@ -15,6 +15,9 @@
 #include "const.h"
 #include "util.h"
 
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
 typedef struct quickData
 {
     UINT *arr;
@@ -79,17 +82,16 @@ void parallel_quicksort(UINT *array, int left, int right)
     if (right > left)
     {
         int pivotIndex = left + (right - left) / 2;
+        pthread_mutex_lock(&lock);
         pivotIndex = Partition(array, left, right, pivotIndex);
-
-        quickData *arg = malloc(sizeof(quickData)); //{array, left, pivotIndex - 1};
-        arg->arr = array;
-        arg->left = left;
-        arg->right = right;
+        pthread_mutex_unlock(&lock);
+        pthread_cond_broadcast(&cond);
+        fprintf(stderr, "%i %i\n", right, left);
+        quickData arg = {array, left, pivotIndex - 1};
         pthread_t thread;
         pthread_create(&thread, NULL, quicksort_thread, &arg);
         parallel_quicksort(array, pivotIndex + 1, right);
         pthread_join(thread, NULL);
-        free(arg);
     }
 }
 void *quicksort_thread(void *init)
