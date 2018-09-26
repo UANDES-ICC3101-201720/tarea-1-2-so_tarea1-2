@@ -28,7 +28,7 @@ void swap(UINT *a, UINT *b)
     *a = *b;
     *b = t;
 }
-
+/* QuickSort Serial */
 int partition(UINT *arr, int low, int high)
 {
     UINT pivot = arr[high];
@@ -44,22 +44,6 @@ int partition(UINT *arr, int low, int high)
     swap(&arr[i + 1], &arr[high]);
     return (i + 1);
 }
-int Partition(UINT *array, int left, int right, int pivot)
-{
-    int pivotValue = array[pivot];
-    swap(&array[pivot], &array[right]);
-    int storeIndex = left;
-    for (int i = left; i < right; i++)
-    {
-        if (array[i] <= pivotValue)
-        {
-            swap(&array[i], &array[storeIndex]);
-            storeIndex++;
-        }
-    }
-    swap(&array[storeIndex], &array[right]);
-    return storeIndex;
-}
 void quicksort(UINT *arr, int low, int high)
 {
     if (low < high)
@@ -69,6 +53,26 @@ void quicksort(UINT *arr, int low, int high)
         quicksort(arr, pi + 1, high);
     }
 }
+
+/* Parralel QuickSort */
+
+int Partition(UINT *arr, int left, int right, int pivot)
+{
+    int pivotValue = arr[pivot];
+    swap(&arr[pivot], &arr[right]);
+    int index = left;
+    for (int i = left; i < right; i++)
+    {
+        if (arr[i] <= pivotValue)
+        {
+            swap(&arr[i], &arr[index]);
+            index++;
+        }
+    }
+    swap(&arr[index], &arr[right]);
+    return index;
+}
+
 void *quicksort_thread(void *init);
 void parallel_quicksort(UINT *array, int left, int right)
 {
@@ -76,11 +80,16 @@ void parallel_quicksort(UINT *array, int left, int right)
     {
         int pivotIndex = left + (right - left) / 2;
         pivotIndex = Partition(array, left, right, pivotIndex);
-        quickData arg = {array, left, pivotIndex - 1};
+
+        quickData *arg = malloc(sizeof(quickData)); //{array, left, pivotIndex - 1};
+        arg->arr = array;
+        arg->left = left;
+        arg->right = right;
         pthread_t thread;
         pthread_create(&thread, NULL, quicksort_thread, &arg);
         parallel_quicksort(array, pivotIndex + 1, right);
         pthread_join(thread, NULL);
+        free(arg);
     }
 }
 void *quicksort_thread(void *init)
